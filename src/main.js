@@ -2,26 +2,28 @@ import iziToast from "izitoast";
 import "izitoast/dist/css/iziToast.min.css";
 import SimpleLightbox from "simplelightbox";
 import "simplelightbox/dist/simple-lightbox.min.css";
-import axios from "axios";
-
-const API_KEY = "48313222-9e5699caa5ef89de4c12bc71b";
-const BASE_URL = "https://pixabay.com/api/";
+import { imagesCardTemplate } from "./js/render-functions";
+import { fetchSearch } from "./js/pixabay-api";
 
 const form = document.querySelector("#search-form");
 const gallery = document.querySelector("#gallery");
 const loader = document.querySelector("#loader");
 const pagination = document.querySelector("#pagination");
+const prevPageButton = document.querySelector("#prev-page");
+const nextPageButton = document.querySelector("#next-page");
+const pageInfo = document.querySelector("#page-info");
 
-let currentPage = 1; 
-let query = ""; 
-let totalPages = 0; 
+let currentPage = 1;
+let query = "";
+let totalPages = 0;
+let isLoading = false;
 
 let lightbox = new SimpleLightbox(".gallery a", {
   captionsData: "alt",
   captionDelay: 250,
 });
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
   query = event.target.searchQuery.value.trim();
 
@@ -33,41 +35,37 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  currentPage = 1; 
-  fetchImages(query, currentPage);
+  currentPage = 1;
+  totalPages = 0;
+  gallery.innerHTML = "";
+  pagination.classList.add("hidden");
+  await fetchAndRenderImages(query, currentPage);
 });
 
-async function fetchImages(query, page) {
+async function fetchAndRenderImages(query, page) {
+  if (isLoading) return;
+  isLoading = true;
   showLoader();
 
   try {
-    const response = await axios.get(BASE_URL, {
-      params: {
-        key: API_KEY,
-        q: query,
-        image_type: "photo",
-        orientation: "horizontal",
-        safesearch: true,
-        per_page: 15, 
-        page: page, 
-      },
-    });
+    const data = await fetchSearch(query, page);
 
-    const data = response.data;
-
-    if (data.hits.length === 0) {
+    if (data.hits.length === 0 && page === 1) {
       iziToast.warning({
         title: "No Results",
         message: "Sorry, there are no images matching your search query. Please try again!",
       });
-      gallery.innerHTML = "";
-      pagination.innerHTML = ""; 
       return;
     }
 
-    totalPages = Math.ceil(data.totalHits / 10);
+    totalPages = Math.ceil(data.totalHits / 15);
     renderGallery(data.hits);
-    renderPagination();
+
+    if (page > 1) {
+      smoothScrollToNewContent(); 
+    }
+
+    updatePagination();
   } catch (error) {
     iziToast.error({
       title: "Error",
@@ -75,70 +73,47 @@ async function fetchImages(query, page) {
     });
   } finally {
     hideLoader();
+    isLoading = false;
   }
 }
 
 function renderGallery(images) {
-  gallery.innerHTML = "";
-
-  const markup = images
-    .map(
-      (image) => `
-      <a href="${image.largeImageURL}" class="gallery-item">
-        <img src="${image.webformatURL}" alt="${image.tags}" loading="lazy" />
-        <div class="gallery-info">
-          <div>
-            <p><b>Likes:</b> ${image.likes}</p>
-            <p><b>Views:</b> ${image.views}</p>
-          </div>
-          <div>
-            <p><b>Comments:</b> ${image.comments}</p>
-            <p><b>Downloads:</b> ${image.downloads}</p>
-          </div>
-        </div>
-      </a>
-    `
-    )
-    .join("");
-
-  gallery.innerHTML = markup;
-
+  const markup = imagesCardTemplate(images);
+  gallery.innerHTML += markup; 
   lightbox.refresh();
 }
 
-function renderPagination() {
-  pagination.innerHTML = "";
+function smoothScrollToNewContent() {
+  const cardHeight = document.querySelector(".gallery a").getBoundingClientRect().height;
 
-  const prevButton = `
-    <button class="btn-prev" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
-  `;
-  const nextButton = `
-    <button class="btn-next" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
-  `;
-
-  pagination.innerHTML = `${prevButton} <span>Page ${currentPage} of ${totalPages}</span> ${nextButton}`;
-
-  const prevBtn = document.querySelector(".btn-prev");
-  const nextBtn = document.querySelector(".btn-next");
-
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => {
-      if (currentPage > 1) {
-        currentPage--;
-        fetchImages(query, currentPage);
-      }
-    });
-  }
-
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      if (currentPage < totalPages) {
-        currentPage++;
-        fetchImages(query, currentPage);
-      }
-    });
-  }
+  window.scrollBy({
+    top: cardHeight * 2,
+    behavior: "smooth",
+  });
 }
+
+function updatePagination() {
+  pagination.classList.remove("hidden");
+
+  prevPageButton.disabled = currentPage === 1;
+  nextPageButton.disabled = currentPage === totalPages;
+
+  pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+
+prevPageButton.addEventListener("click", async () => {
+  if (currentPage > 1) {
+    currentPage--;
+    await fetchAndRenderImages(query, currentPage);
+  }
+});
+
+nextPageButton.addEventListener("click", async () => {
+  if (currentPage < totalPages) {
+    currentPage++;
+    await fetchAndRenderImages(query, currentPage);
+  }
+});
 
 function showLoader() {
   loader.classList.remove("hidden");
@@ -147,5 +122,3 @@ function showLoader() {
 function hideLoader() {
   loader.classList.add("hidden");
 }
-
-
