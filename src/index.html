@@ -12,25 +12,21 @@
     <header>
       <form id="search-form">
         <input
+          class="input"
           type="text"
           name="searchQuery"
           placeholder="Search images..."
           required
         />
-        <button type="submit">Search</button>
+        <button type="submit" class="search-button">Search</button>
       </form>
-      <div id="gallery" class="gallery"></div>
-      <div id="pagination" class="pagination">
-        <button id="prev-page" disabled>Previous</button>
-        <span id="page-info">Page 1</span>
-        <button id="next-page" disabled>Next</button>
-      </div>
-      <div id="loader" class="hidden">Loading...</div>
     </header>
 
-    <div id="loader" class="loader hidden">Loading...</div>
-
-    <main></main>
+    <main>
+      <div id="gallery" class="gallery"></div>
+      <button id="load-more" class="hidden load-more-button">Load More</button>
+      <div id="loader" class="hidden">Loading...</div>
+    </main>
 
     <script type="module" src="./main.js"></script>
   </body>
